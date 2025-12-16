@@ -57,7 +57,7 @@ def load_members():
     return members
 
 
-# Saves the list of members back to the csv file
+# Saves the list of members back to the csv file.
 def save_members(members):
     """Save member data back to the CSV."""
     with open(members_file, "w", newline="") as f:
@@ -78,7 +78,7 @@ def save_members(members):
             })
 
 
-# Adds a new member
+# Adding a new member
 def add_member():
     members = load_members()
 
