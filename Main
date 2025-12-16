@@ -2,36 +2,83 @@ import csv
 import shelve
 
 # Stores member data in a csv file
-members_file = "members.csv"
+members_file = "membership data.csv"
 
-# Stores the skill levels for members and leagues
+# Stores leagues in a shelve database file
+LEAGUE_DB = "leagues.db"
+
+# Valid skill levels in the club
 player_skill_level = ["beginner", "improver", "intermediate", "advanced", "club"]
+
+# League skill caps (beginners cannot join leagues; club too good)
 league_level = ["improver", "intermediate", "advanced"]
 
-# Loads members from the csv file into a list of dictionaries
+
+# Loads member data from the csv file
 def load_members():
+    """Load membership data from the CSV and standardise internal keys."""
     members = []
     try:
-        with open(members_file, newline = "") as f:
+        with open(members_file, newline="") as f:
             reader = csv.DictReader(f)
+
             for row in reader:
-                row["credit"] = float(row["credit"])
-                members.append(row)
+                mem_no = (row.get("Membership Number") or row.get("membership_number") or "").strip()
+                first = (row.get("First Name") or row.get("first_name") or "").strip()
+                surname = (row.get("Surname") or row.get("surname") or "").strip()
+                skill_raw = (row.get("Skill Level") or row.get("skill") or "").strip().lower()
+                credit_raw = (row.get("Credit") or row.get("credit") or "0").strip()
+                league_raw = (row.get("League") or row.get("league") or "No").strip()
+
+                try:
+                    credit_val = float(credit_raw)
+                except ValueError:
+                    credit_val = 0.0
+
+                # Convert Yes/No -> internal league flag
+                if league_raw.lower() in ["no", "none", ""]:
+                    league_val = "None"
+                elif league_raw.lower() == "yes":
+                    league_val = "Yes"
+                else:
+                    league_val = league_raw
+
+                members.append({
+                    "membership_number": mem_no,
+                    "first_name": first,
+                    "surname": surname,
+                    "skill": skill_raw,
+                    "credit": float(credit_val),
+                    "league": league_val
+                })
     except FileNotFoundError:
         pass
+
     return members
 
-# Saves the list of members back to the csv file
+
+# Saves the list of members back to the csv file.
 def save_members(members):
-    with open(members_file, "w", newline = "") as f:
-        fieldnames = ["membership_number", "first_name", "surname",
-                      "skill", "credit", "league"]
+    """Save member data back to the CSV."""
+    with open(members_file, "w", newline="") as f:
+        fieldnames = ["Membership Number", "First Name", "Surname", "Skill Level", "Credit", "League"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        for x in members:
-            writer.writerow(x)
 
-# Adds a new member 
+        for m in members:
+            league_out = "No" if m.get("league", "None") in ["None", "", None] else "Yes"
+
+            writer.writerow({
+                "Membership Number": m.get("membership_number", ""),
+                "First Name": m.get("first_name", ""),
+                "Surname": m.get("surname", ""),
+                "Skill Level": (m.get("skill", "") or "").capitalize(),
+                "Credit": m.get("credit", 0),
+                "League": league_out
+            })
+
+
+# Adding a new member
 def add_member():
     members = load_members()
 
@@ -80,53 +127,62 @@ def add_member():
     save_members(members)
     print("Member added.")
 
-# Deletes a member and shows refund message if necessary
+
+# Deletes a member
 def delete_member():
     members = load_members()
     number = input("Membership number to delete: ").strip()
 
-    for x in members:
-        if x["membership_number"] == number:
-            if x["credit"] > 0:
-                print(f"Return £{x['credit']} to the member.")
-            members.remove(x)
+    for i, m in enumerate(members):
+        if m["membership_number"] == number:
+            if m["credit"] > 0:
+                print(f"Credit to return: {m['credit']}")
+            del members[i]
             save_members(members)
             print("Member deleted.")
             return
 
     print("Member not found.")
 
-# Edits an existing member's details
+
+# Edits a member 
 def edit_member():
     members = load_members()
     number = input("Membership number to edit: ").strip()
 
-    for x in members:
-        if x["membership_number"] == number:
-            new_first = input(f"First name ({x['first_name']}): ").strip()
-            if new_first:
-                x["first_name"] = new_first
+    for m in members:
+        if m["membership_number"] == number:
+            new_first = input(f"First name ({m['first_name']}): ").strip()
+            new_surname = input(f"Surname ({m['surname']}): ").strip()
 
-            new_surname = input(f"Surname ({x['surname']}): ").strip()
-            if new_surname:
-                x["surname"] = new_surname
-
-            # Validates skill if changed
             while True:
-                new_skill = input(f"Skill ({x['skill']}): ").strip()
-                if not new_skill or new_skill in player_skill_level:
-                    if new_skill:
-                        x["skill"] = new_skill
+                new_skill = input(f"Skill level ({m['skill']}): ").strip().lower()
+                if new_skill == "":
+                    new_skill = m["skill"]
+                    break
+                if new_skill in player_skill_level:
                     break
                 print("Invalid skill level.")
 
-            # Updates credit
-            try:
-                new_credit = input(f"Credit ({x['credit']}): ").strip()
-                if new_credit:
-                    x["credit"] = float(new_credit)
-            except ValueError:
-                pass
+            while True:
+                new_credit = input(f"Credit ({m['credit']}): ").strip()
+                if new_credit == "":
+                    credit_val = m["credit"]
+                    break
+                try:
+                    credit_val = float(new_credit)
+                    if credit_val >= 0:
+                        break
+                except ValueError:
+                    pass
+                print("Invalid credit.")
+
+            if new_first != "":
+                m["first_name"] = new_first
+            if new_surname != "":
+                m["surname"] = new_surname
+            m["skill"] = new_skill
+            m["credit"] = credit_val
 
             save_members(members)
             print("Member updated.")
@@ -134,63 +190,44 @@ def edit_member():
 
     print("Member not found.")
 
-# Displays all members
+
+# Views members
 def view_members():
     members = load_members()
-    for x in members:
-        print(x)
+    for m in members:
+        print(m)
 
-# Generates fixtures based on a round-robin format
-def generate_fixtures(league):
-    players = league["players"][:]
 
-    # Adds dummy player if there is an odd number of players
-    if len(players) % 2 != 0:
-        players.append(None)
+# Saves a league in the shelve database
+def save_league(league):
+    with shelve.open(LEAGUE_DB) as db:
+        db[league["name"]] = league
 
-    rounds = []
-    for _ in range(len(players) - 1):
-        matches = []
-        for i in range(len(players) // 2):
-            if players[i] and players[-i - 1]:
-                matches.append((players[i], players[-i - 1]))
-        rounds.append(matches)
-        players = [players[0]] + [players[-1]] + players[1:-1]
 
-    league["fixtures"] = rounds
+# Loads a league from the shelve database
+def load_league(name):
+    with shelve.open(LEAGUE_DB) as db:
+        return db.get(name, None)
 
-# Checks if a badminton score is valid
-def valid_score(a, b):
-    if a == 30 and b == 30:
-        return True
-    if (a >= 21 or b >= 21) and abs(a - b) >= 2:
-        return True
-    return False
 
-# Updates the league table after a match
-def update_table(league, p1, p2, s1, s2):
-    for p in [p1, p2]:
-        num = p["membership_number"]
-        if num not in league["table"]:
-            league["table"][num] = {
-                "player": p,
-                "points": 0,
-                "for": 0,
-                "against": 0
-            }
+# Lists saved leagues
+def list_leagues():
+    with shelve.open(LEAGUE_DB) as db:
+        return list(db.keys())
 
-    league["table"][p1["membership_number"]]["for"] += s1
-    league["table"][p1["membership_number"]]["against"] += s2
-    league["table"][p2["membership_number"]]["for"] += s2
-    league["table"][p2["membership_number"]]["against"] += s1
 
-    if s1 > s2:
-        league["table"][p1["membership_number"]]["points"] += 2
-    elif s2 > s1:
-        league["table"][p2["membership_number"]]["points"] += 2
-    else:
-        league["table"][p1["membership_number"]]["points"] += 1
-        league["table"][p2["membership_number"]]["points"] += 1
+# Makes a safe snapshot of the league table
+def clone_table(table_dict):
+    snapshot = {}
+    for num, row in table_dict.items():
+        snapshot[num] = {
+            "player": row["player"].copy(),
+            "points": row["points"],
+            "for": row["for"],
+            "against": row["against"]
+        }
+    return snapshot
+
 
 # Displays the league table in order after it has been sorted
 def display_table(league):
@@ -208,7 +245,8 @@ def display_table(league):
     for i, row in enumerate(table, 1):
         p = row["player"]
         diff = row["for"] - row["against"]
-        print(i, p["first_name"], row["points"], row["for"], row["against"], diff)
+        print(i, p["first_name"], p["surname"], row["points"], row["for"], row["against"], diff)
+
 
 # Creates a new league and adds players
 def create_league():
@@ -221,12 +259,23 @@ def create_league():
             break
         print("Invalid league skill.")
 
-    fee = float(input("Entry fee: "))
+    while True:
+        try:
+            fee = float(input("Entry fee: "))
+            if fee >= 0:
+                break
+        except ValueError:
+            pass
+        print("Invalid fee.")
 
     while True:
-        num = int(input("Number of players (4–10): "))
-        if 4 <= num <= 10:
-            break
+        try:
+            num = int(input("Number of players (4–10): "))
+            if 4 <= num <= 10:
+                break
+        except ValueError:
+            pass
+        print("Invalid number of players.")
 
     league = {
         "name": name,
@@ -234,15 +283,25 @@ def create_league():
         "fee": fee,
         "players": [],
         "fixtures": [],
-        "table": {}
+        "table": {},
+        # persistence + historic rounds
+        "results": [],
+        "history": [],
+        "current_round": 0,
+        "completed": False
     }
 
-    allowed_skills = league_level[:league_level.index(skill_cap) + 1]
+    # Allowed skills 
+    allowed_skills = ["beginner", "improver", "intermediate", "advanced"]
+    allowed_skills = allowed_skills[:allowed_skills.index(skill_cap) + 1]
 
     while len(league["players"]) < num:
         number = input("Membership number: ").strip()
         for x in members:
             if x["membership_number"] == number:
+                
+                x["skill"] = x["skill"].strip().lower()
+                  
                 if x["league"] != "None":
                     print("Already in a league.")
                 elif x["skill"] not in allowed_skills:
@@ -258,66 +317,6 @@ def create_league():
             print("Member not found.")
 
     save_members(members)
-    generate_fixtures(league)
-    print("League created.")
-    return league
-
-# Enters scores round by round and updates the table
-def enter_round_scores(league):
-    for rnd, matches in enumerate(league["fixtures"]):
-        print(f"\nRound {rnd + 1}")
-        for p1, p2 in matches:
-            while True:
-                try:
-                    s1 = int(input(f"{p1['first_name']} score: "))
-                    s2 = int(input(f"{p2['first_name']} score: "))
-                    if valid_score(s1, s2):
-                        update_table(league, p1, p2, s1, s2)
-                        break
-                except ValueError:
-                    pass
-                print("Invalid score.")
-        display_table(league)
-
-def main():
-    league = None
-
-    while True:
-        print("\n1. Add member")
-        print("2. Delete member")
-        print("3. Edit member")
-        print("4. View members")
-        print("5. Create league")
-        print("6. Run league")
-        print("7. Exit")
-
-        choice = input("Choice: ").strip()
-
-        if choice == "1":
-            add_member()
-        elif choice == "2":
-            delete_member()
-        elif choice == "3":
-            edit_member()
-        elif choice == "4":
-            view_members()
-        elif choice == "5":
-            league = create_league()
-        elif choice == "6":
-            if league:
-                enter_round_scores(league)
-            else:
-                print("No league created.")
-        elif choice == "7":
-            break
-        else:
-            print("Invalid choice.")
-
-
-if __name__ == "__main__":
-    main()
-
-save_members(members)
     generate_fixtures(league)
     save_league(league)
     print("League created.")
@@ -358,18 +357,18 @@ def export_final_table_csv(league):
     """Mandatory: save the final league table as a CSV file."""
     filename = f"{league['name']}_final_table.csv"
 
-# convert the league table dictionary into a list of rows
+# converts league table dictionary into a list of rows
     table_rows = list(league["table"].values())
     table_rows.sort(
         key=lambda x: (x["points"], x["for"] - x["against"], x["for"]),
         reverse=True
     )
 
-# write final league table to a CSV file
+# write final league table to a csv file
     with open(filename, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["Pos", "MembershipNo", "FirstName", "Surname", "Points", "For", "Against", "Diff"])
-        for i, row in enumerate(table_rows, 1): # write each player's league position and their stats
+        for i, row in enumerate(table_rows, 1): # write each players position and stats
             p = row["player"]
             diff = row["for"] - row["against"]
             writer.writerow([i, p["membership_number"], p["first_name"], p["surname"],
@@ -382,7 +381,7 @@ def export_final_table_csv(league):
 
 def award_prizes_and_reset(league):
     """Pay prize money (50/35/15) and reset all players' league indicator."""
-    table_rows = list(league["table"].values()) # sort the league table using the same ranking rules as above
+    table_rows = list(league["table"].values()) # sort league table using same ranking rules as above
     table_rows.sort(
         key=lambda x: (x["points"], x["for"] - x["against"], x["for"]),
         reverse=True
@@ -393,14 +392,14 @@ def award_prizes_and_reset(league):
         print("Not enough players to award prizes.")
         return
 
-# total prize pot = entry fee x number of players
+# total prize pot = entry fee x no. of players
     pot = league["fee"] * len(league["players"])
     shares = [0.50, 0.35, 0.15]
 
-    members = load_members() # load all registered members
+# loads all registered members
+    members = load_members()
 
-# pay prize money to top 3 players
-    # Pay top 3
+    # Pay prize money to top 3 players
     for idx in range(3):
         winner_player = table_rows[idx]["player"]
         prize = pot * shares[idx]
@@ -416,7 +415,6 @@ def award_prizes_and_reset(league):
                 m["league"] = "None"
                 break
 
-# save updated member data 
     save_members(members)
     print("Prize money paid and players reset to league=None.")
 
@@ -429,7 +427,7 @@ def finalise_league(league):
     save_league(league)
 
 
-# Generates round robin fixtures so each player players every other player once
+# Generates round robin fixtures so each player plays every other player once
 def generate_fixtures(league):
     players = league["players"][:]
 
@@ -438,7 +436,7 @@ def generate_fixtures(league):
         players.append(None)
 
     rounds = []
-    for _ in range(len(players) - 1): # generate fixtures for each round
+    for _ in range(len(players) - 1): # generates fixtures for each round
         matches = []
         for i in range(len(players) // 2): # pair players from opposite ends of the list
             if players[i] and players[-i - 1]:
@@ -474,7 +472,7 @@ def enter_round_scores(league):
                 try:
                     s1 = int(input(f"{p1['first_name']} score: "))
                     s2 = int(input(f"{p2['first_name']} score: "))
-                    if valid_score(s1, s2): # validate score and update table
+                    if valid_score(s1, s2):
                         update_table(league, p1, p2, s1, s2)
 
 # store match result
@@ -509,22 +507,22 @@ def enter_round_scores(league):
         print("\nAll rounds completed.")
         finalise_league(league)
 
-# display match results and league table after a specified past round
+# display match results and league table after a specified round
 def show_past_round():
     """Historic Data: show results + league table after a specified round."""
-    name = input("League name: ").strip() # ask user for league name
-    league = load_league(name) # load league data from storage
-    if not league: # if league does not exist, stop and return league not found
+    name = input("League name: ").strip()
+    league = load_league(name)
+    if not league:
         print("League not found.")
         return
 
 # retrieve saved round history
     history = league.get("history", [])
-    if not history: # if no rounds have been played yet
+    if not history:
         print("No rounds have been saved for this league yet.")
         return
 
-# ask user which round they want to view
+# ask user what they want to view
     try:
         r = int(input(f"Round number (1–{len(history)}): ").strip())
     except ValueError:
@@ -539,10 +537,10 @@ def show_past_round():
 # get snapshot of requested round
     snap = history[r - 1]
     print(f"\n{name} — Round {snap['round']} results")
-    for g in snap["results"]: # print each match result 
+    for g in snap["results"]:
         print(f"{g['p1_name']} {g['s1']} - {g['s2']} {g['p2_name']}")
 
-# sort league table by points, GD and goals scored
+# sort league table by points, goal diff and goals scored
     table_rows = list(snap["table"].values())
     table_rows.sort(
         key=lambda x: (x["points"], x["for"] - x["against"], x["for"]),
@@ -615,4 +613,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
