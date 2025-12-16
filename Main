@@ -1,3 +1,4 @@
+import csv
 
 # Stores member data in a csv file
 members_file = "members.csv"
