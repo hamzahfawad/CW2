@@ -16,7 +16,7 @@ league_level = ["improver", "intermediate", "advanced"]
 
 # Loads member data from the csv file
 def load_members():
-    """Load membership data from the coursework CSV and standardise internal keys."""
+    """Load membership data from the CSV and standardise internal keys."""
     members = []
     try:
         with open(members_file, newline="") as f:
@@ -59,7 +59,7 @@ def load_members():
 
 # Saves the list of members back to the csv file
 def save_members(members):
-    """Save member data back to the CSV using the original coursework headers."""
+    """Save member data back to the CSV."""
     with open(members_file, "w", newline="") as f:
         fieldnames = ["Membership Number", "First Name", "Surname", "Skill Level", "Credit", "League"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -145,7 +145,7 @@ def delete_member():
     print("Member not found.")
 
 
-# Edits a member (does not edit league indicator)
+# Edits a member 
 def edit_member():
     members = load_members()
     number = input("Membership number to edit: ").strip()
@@ -291,7 +291,7 @@ def create_league():
         "completed": False
     }
 
-    # Allowed skills (beginners cannot join; club excluded)
+    # Allowed skills 
     allowed_skills = ["beginner", "improver", "intermediate", "advanced"]
     allowed_skills = allowed_skills[:allowed_skills.index(skill_cap) + 1]
 
