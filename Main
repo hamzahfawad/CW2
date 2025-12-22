@@ -370,10 +370,6 @@ def export_final_table_csv(league):
         writer = csv.writer(f)
         writer.writerow(["Pos", "MembershipNo", "FirstName", "Surname", "Points", "For", "Against", "Diff"])
         for i, row in enumerate(table_rows, 1): # write each players position and stats
-    with open(filename, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["Pos", "MembershipNo", "FirstName", "Surname", "Points", "For", "Against", "Diff"])
-        for i, row in enumerate(table_rows, 1):
             p = row["player"]
             diff = row["for"] - row["against"]
             writer.writerow([i, p["membership_number"], p["first_name"], p["surname"],
@@ -387,7 +383,6 @@ def export_final_table_csv(league):
 def award_prizes_and_reset(league):
     """Pay prize money (50/35/15) and reset all players' league indicator."""
     table_rows = list(league["table"].values()) # sort league table using same ranking rules as above
-    table_rows = list(league["table"].values())
     table_rows.sort(
         key=lambda x: (x["points"], x["for"] - x["against"], x["for"]),
         reverse=True
@@ -405,20 +400,11 @@ def award_prizes_and_reset(league):
 # loads all registered members
     members = load_members()
 
-    # Pay prize money to top 3 players
+    # Pay top 3 prizes 
     for idx in range(3):
         winner_player = table_rows[idx]["player"]
         prize = pot * shares[idx]
-        for m in members: # find winning member and add prize money
-    pot = league["fee"] * len(league["players"])
-    shares = [0.50, 0.35, 0.15]
 
-    members = load_members()
-
-    # Pay top 3
-    for idx in range(3):
-        winner_player = table_rows[idx]["player"]
-        prize = pot * shares[idx]
         for m in members:
             if m["membership_number"] == winner_player["membership_number"]:
                 m["credit"] += prize
@@ -460,14 +446,6 @@ def generate_fixtures(league):
         rounds.append(matches)
         players = [players[0]] + [players[-1]] + players[1:-1] # rotate players 
 
-    for _ in range(len(players) - 1):
-        matches = []
-        for i in range(len(players) // 2):
-            if players[i] and players[-i - 1]:
-                matches.append((players[i], players[-i - 1]))
-        rounds.append(matches)
-        players = [players[0]] + [players[-1]] + players[1:-1]
-
     league["fixtures"] = rounds
 
     # Initialise league table
@@ -483,8 +461,6 @@ def generate_fixtures(league):
 # Enters scores round by round and updates the table
 def enter_round_scores(league):
     start_round = league.get("current_round", 0) # resume from last saved round
-
-    start_round = league.get("current_round", 0)
 
     for rnd in range(start_round, len(league["fixtures"])):
         matches = league["fixtures"][rnd]
@@ -585,8 +561,6 @@ def show_past_round():
 def main():
 
     league = None # holds currently active league
-    
-    league = None
 
     while True:
         print("\n1. Add member")
