@@ -357,46 +357,54 @@ def export_final_table_csv(league):
     """Mandatory: save the final league table as a CSV file."""
     filename = f"{league['name']}_final_table.csv"
 
+
+# converts league table dictionary into a list of rows
     table_rows = list(league["table"].values())
     table_rows.sort(
         key=lambda x: (x["points"], x["for"] - x["against"], x["for"]),
         reverse=True
     )
 
+# write final league table to a csv file
     with open(filename, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["Pos", "MembershipNo", "FirstName", "Surname", "Points", "For", "Against", "Diff"])
-        for i, row in enumerate(table_rows, 1):
+        for i, row in enumerate(table_rows, 1): # write each players position and stats
             p = row["player"]
             diff = row["for"] - row["against"]
             writer.writerow([i, p["membership_number"], p["first_name"], p["surname"],
                              row["points"], row["for"], row["against"], diff])
 
+# store filename in league object and confirm save
     league["final_csv"] = filename
     print(f"Final league table saved to: {filename}")
 
 
 def award_prizes_and_reset(league):
     """Pay prize money (50/35/15) and reset all players' league indicator."""
-    table_rows = list(league["table"].values())
+    table_rows = list(league["table"].values()) # sort league table using same ranking rules as above
     table_rows.sort(
         key=lambda x: (x["points"], x["for"] - x["against"], x["for"]),
         reverse=True
     )
 
+# check there are enough players for prizes
     if len(table_rows) < 3:
         print("Not enough players to award prizes.")
         return
 
+# total prize pot = entry fee x no. of players
     pot = league["fee"] * len(league["players"])
     shares = [0.50, 0.35, 0.15]
 
+# loads all registered members
     members = load_members()
 
-    # Pay top 3
+    # Pay top 3 prizes 
     for idx in range(3):
         winner_player = table_rows[idx]["player"]
         prize = pot * shares[idx]
+
         for m in members:
             if m["membership_number"] == winner_player["membership_number"]:
                 m["credit"] += prize
@@ -420,8 +428,7 @@ def finalise_league(league):
     league["completed"] = True
     save_league(league)
 
-
-# Generates round robin fixtures
+# Generates round robin fixtures so each player plays every other player once
 def generate_fixtures(league):
     players = league["players"][:]
 
@@ -430,13 +437,14 @@ def generate_fixtures(league):
         players.append(None)
 
     rounds = []
-    for _ in range(len(players) - 1):
+
+    for _ in range(len(players) - 1): # generates fixtures for each round
         matches = []
-        for i in range(len(players) // 2):
+        for i in range(len(players) // 2): # pair players from opposite ends of the list
             if players[i] and players[-i - 1]:
                 matches.append((players[i], players[-i - 1]))
         rounds.append(matches)
-        players = [players[0]] + [players[-1]] + players[1:-1]
+        players = [players[0]] + [players[-1]] + players[1:-1] # rotate players 
 
     league["fixtures"] = rounds
 
@@ -452,7 +460,7 @@ def generate_fixtures(league):
 
 # Enters scores round by round and updates the table
 def enter_round_scores(league):
-    start_round = league.get("current_round", 0)
+    start_round = league.get("current_round", 0) # resume from last saved round
 
     for rnd in range(start_round, len(league["fixtures"])):
         matches = league["fixtures"][rnd]
@@ -460,6 +468,7 @@ def enter_round_scores(league):
 
         round_results = []
 
+# enter scores for each match
         for p1, p2 in matches:
             while True:
                 try:
@@ -468,6 +477,7 @@ def enter_round_scores(league):
                     if valid_score(s1, s2):
                         update_table(league, p1, p2, s1, s2)
 
+# store match result
                         round_results.append({
                             "p1_num": p1["membership_number"],
                             "p2_num": p2["membership_number"],
@@ -481,6 +491,7 @@ def enter_round_scores(league):
                     pass
                 print("Invalid score.")
 
+# save round results and table
         league["results"].append(round_results)
         league["history"].append({
             "round": rnd + 1,
@@ -493,11 +504,13 @@ def enter_round_scores(league):
 
         display_table(league)
 
+# if all rounds complete, finalise league
     if league.get("current_round", 0) >= len(league.get("fixtures", [])) and not league.get("completed", False):
         print("\nAll rounds completed.")
         finalise_league(league)
 
 
+# display match results and league table after a specified round
 def show_past_round():
     """Historic Data: show results + league table after a specified round."""
     name = input("League name: ").strip()
@@ -506,41 +519,48 @@ def show_past_round():
         print("League not found.")
         return
 
+# retrieve saved round history
     history = league.get("history", [])
     if not history:
         print("No rounds have been saved for this league yet.")
         return
 
+# ask user what they want to view
     try:
         r = int(input(f"Round number (1–{len(history)}): ").strip())
     except ValueError:
         print("Invalid round number.")
         return
 
+
+# check round number is within valid range
     if r < 1 or r > len(history):
         print("Round not found.")
         return
 
+# get snapshot of requested round
     snap = history[r - 1]
     print(f"\n{name} — Round {snap['round']} results")
     for g in snap["results"]:
         print(f"{g['p1_name']} {g['s1']} - {g['s2']} {g['p2_name']}")
 
+# sort league table by points, goal diff and goals scored
     table_rows = list(snap["table"].values())
     table_rows.sort(
         key=lambda x: (x["points"], x["for"] - x["against"], x["for"]),
         reverse=True
     )
 
+# display league table after this round
     print("\nLeague Table (after this round)")
     for i, row in enumerate(table_rows, 1):
         p = row["player"]
         diff = row["for"] - row["against"]
         print(i, p["first_name"], p["surname"], row["points"], row["for"], row["against"], diff)
 
-
 def main():
-    league = None
+
+    league = None # holds currently active league
 
     while True:
         print("\n1. Add member")
